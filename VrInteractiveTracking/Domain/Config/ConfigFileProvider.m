@@ -172,66 +172,67 @@
  */
 -(void) parseXMLWithFilePath:(NSString*) filePath identity:(NSString*) identity date:(NSString*) date remoteFile:(BOOL)isRemoteFile {
     NSLog(@"parseXMLWithFilePath");
-    
+
     XMLParser *xmlParser = [[XMLParser alloc] init];
     [xmlParser parseXML:filePath identity:identity date:date isRemoteFile:isRemoteFile callback:^(NSMutableArray *configFileArray, BOOL isRemoteFile) {
-
+        
         BOOL hasRemote = NO;
-        for (ConfigFile *configFile in configFileArray) {
+        @try {
+            
+            for (ConfigFile *configFile in configFileArray) {
 
-            @try {
-                // 正常ファイルか判断
-                ConfigValidator *validator = [[ConfigValidator alloc] initWithValidationHandler:[ConfigValidationHandler new] config:configFile];
-                configFile.isNormal = ![[validator handler] errors];
-                NSLog(@"Validate result = %@", configFile.isNormal?@"YES":@"NO");
-                
-                if (![[validator handler] errors]) {
-                    // リストに存在しなければリストに追加、あれば上書き
-                    [_configFileList setObject:configFile forKey:[configFile getIdentity]];
-                }else {
-                    //            NSLog(@"XML parse error in parseXMLWithFilePath %@",[[validator handler] toString]);
-                    @throw [VRIException exceptionWithMessage:[[validator handler] toString]];
-                }
-                
-                
-                // ローカル
-                if (!isRemoteFile) {
-                    NSLog(@"End Local file");
-                    // config_urlの値に値があれば取得する
-                    if (![self isCheckedConfigUrl:configFile] || !configFile.isNormal) {
-                        NSLog(@"1");
-                    } else {
-                        NSLog(@"2");
-                        hasRemote = YES;
-                        // リモート設定ファイルを取得
-                        ConfigQueParams *param = [ConfigQueParams new];
-                        param.identity = identity;
-                        if ([identity isEqualToString:VR_LIB_DEFAULT_LOCAL_FILE_IDENTITY] && [_outsideConfigURL length] != 0) {
-                            param.filePath = _outsideConfigURL;
-                        }else {
-                            param.filePath = configFile.getConfig_Url;
-                        }
-                        NSLog(@"3");
-                        
+                @try {
+                    // 正常ファイルか判断
+                    ConfigValidator *validator = [[ConfigValidator alloc] initWithValidationHandler:[ConfigValidationHandler new] config:configFile];
+                    configFile.isNormal = ![[validator handler] errors];
+                    NSLog(@"Validate result = %@", configFile.isNormal?@"YES":@"NO");
+                    
+                    if (![[validator handler] errors]) {
+                        // リストに存在しなければリストに追加、あれば上書き
                         [_configFileList setObject:configFile forKey:[configFile getIdentity]];
-                        
-                        [self initConfig:param];
+                    }else {
+                        //            NSLog(@"XML parse error in parseXMLWithFilePath %@",[[validator handler] toString]);
+                        @throw [VRIException exceptionWithMessage:[[validator handler] toString]];
+                    }
+                    
+                    
+                    // ローカル
+                    if (!isRemoteFile) {
+                        NSLog(@"End Local file");
+                        // config_urlの値に値があれば取得する
+                        if (![self isCheckedConfigUrl:configFile] || !configFile.isNormal) {
+                        } else {
+                            hasRemote = YES;
+                            // リモート設定ファイルを取得
+                            ConfigQueParams *param = [ConfigQueParams new];
+                            param.identity = identity;
+                            if ([identity isEqualToString:VR_LIB_DEFAULT_LOCAL_FILE_IDENTITY] && [_outsideConfigURL length] != 0) {
+                                param.filePath = _outsideConfigURL;
+                            }else {
+                                param.filePath = configFile.getConfig_Url;
+                            }
+                            
+                            [_configFileList setObject:configFile forKey:[configFile getIdentity]];
+                            
+                            [self initConfig:param];
+                        }
+                    }
+                    // リモート
+                    else {
+                        [_configFileList setObject:configFile forKey:[configFile getIdentity]];
+                    }
+                } @catch (NSException *exception) {
+                    DLog(@"%@", [exception reason]);
+                    // 何もないと困るので、最低限isNormalがFalseの設定ファイルをセット
+                    if (![_configFileList objectForKey:[configFile getIdentity]]) {
+                        configFile.isNormal = NO;
+                        [_configFileList setObject:configFile forKey:[configFile getIdentity]];
                     }
                 }
-                // リモート
-                else {
-                    [_configFileList setObject:configFile forKey:[configFile getIdentity]];
-                }
-            } @catch (NSException *exception) {
-                DLog(@"%@", [exception reason]);
-                // 何もないと困るので、最低限isNormalがFalseの設定ファイルをセット
-                if (![_configFileList objectForKey:[configFile getIdentity]]) {
-                    configFile.isNormal = NO;
-                    [_configFileList setObject:configFile forKey:[configFile getIdentity]];
-                }
             }
+        } @catch (NSException *exception) {
+            DLog(@"%@", [exception reason]);
         }
-        
         if (!hasRemote) {
             [self finish:identity];
         }
@@ -239,14 +240,27 @@
 }
 
 - (void)finish:(NSString *)identity {
-    // 実行したキューを削除
-    [_configQue removeObjectAtIndex:0];
-    // コールバック
-    _listener(NO, identity);
+    @try {
+        // 実行したキューを削除
+        if (_configQue && _configQue.count > 0) {
+            [_configQue removeObjectAtIndex:0];
+        }
+        // コールバック
+        if (_listener) {
+            _listener(NO, identity);
+        }
+    } @catch (NSException *exception) {
+        DLog(@"%@", [exception reason]);
+    }
     // 作業フラグを下ろす
     _isRunning = NO;
-    // 処理が終了したので、次のキューを実行
-    [self pop];
+    @try {
+        // 処理が終了したので、次のキューを実行
+        [self pop];
+        
+    } @catch (NSException *exception) {
+        DLog(@"%@", [exception reason]);
+    }
 }
 
 /**
