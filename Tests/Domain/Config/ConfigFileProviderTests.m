@@ -157,6 +157,58 @@ NSString *const VR_LIB_DEFAULT_FILE_NAME = @"vrTrackingConfig";
     }];
 }
 
+/**
+ 目的：空の設定ファイルでもコールバックが返ってくるか
+ */
+- (void)testConfigFileProviderCallbackEmptyFileName {
+    
+    __weak XCTestExpectation *expectation = [self expectationWithDescription:@"testConfigFileProviderCallback"];
+    __block ConfigFileProvider *configFileProvider;
+    configFileProvider = [[ConfigFileProvider alloc] initWithOutsideConfigURL:[self testConfigPath:@"vrTrackingConfig"] callback:^(BOOL isRunning, NSString *identity) {
+
+        if (!isRunning && [identity isEqualToString:@"test_config"]) {
+
+            // 前提：コールバックを設定し、Identity=test_configで処理を行なっている
+            // 想定：identity=test_configで設定ファイルの読み込みコールバックが返ってくる
+            XCTAssertNotNil(configFileProvider);
+            
+            [expectation fulfill];
+        }
+    }];
+
+    [configFileProvider addConfigWithIdentity:@"test_config" fileName:@""];
+    
+    [self waitForExpectationsWithTimeout:10 handler:^(NSError * _Nullable error) {
+        XCTAssertNil(error, @"has error.");
+    }];
+}
+
+/**
+ 目的：壊れたの設定ファイルでもコールバックが返ってくるか
+ */
+- (void)testConfigFileProviderCallbackBrokenFile {
+    
+    __weak XCTestExpectation *expectation = [self expectationWithDescription:@"testConfigFileProviderCallback"];
+    __block ConfigFileProvider *configFileProvider;
+    configFileProvider = [[ConfigFileProvider alloc] initWithOutsideConfigURL:[self testConfigPath:@"vrTrackingConfigBroken"] callback:^(BOOL isRunning, NSString *identity) {
+
+        if (!isRunning && [identity isEqualToString:@"test_config"]) {
+
+            // 前提：コールバックを設定し、Identity=test_configで処理を行なっている
+            // 想定：identity=test_configで設定ファイルの読み込みコールバックが返ってくる
+            XCTAssertNotNil(configFileProvider);
+            
+            [expectation fulfill];
+        }
+    }];
+
+    [configFileProvider addConfigWithIdentity:@"test_config" fileName:@"vrTrackingConfigBroken"];
+    
+    [self waitForExpectationsWithTimeout:10 handler:^(NSError * _Nullable error) {
+        XCTAssertNil(error, @"has error.");
+    }];
+}
+
 
 - (NSString *)testConfigPath:(NSString *)fileName {
     NSString *configPath = [[NSBundle bundleForClass:self.class] pathForResource:fileName ofType:@"xml"];
